@@ -1,0 +1,152 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Title</title>
+
+    <link rel="stylesheet" href="js/jquery-ui.min.css">
+    <link rel="stylesheet" href="js/jquery-ui.structure.min.css">
+    <link rel="stylesheet" href="js/jquery-ui.theme.min.css">
+
+    <script src="//api.bitrix24.com/api/v1/"></script>
+    <script src="js/jquery.js"></script>
+    <script type="text/javascript" src="js/jquery-ui.min.js"></script>
+
+    <script>
+        $( document ).ready(function() {
+
+
+
+            var availableTags = [];
+            $( "#tags" ).autocomplete({
+                minLength: 2,
+                source: function(request, response) {
+                    var term = request.term;
+                    BX24.init(function(){
+                        availableTags = [];
+                        BX24.callMethod('user.search', {'NAME':term, 'LAST_NAME': term}, function(res){
+                            console.log('start USER SEARCH');
+//                console.log(res.answer.result);
+
+                            $.each(res.answer.result, function (index, value) {
+                                console.log(value);
+                                availableTags.push({label: value.LAST_NAME + ' ' +value.NAME, value:value.ID});
+                            });
+                            console.log('RESULT');
+                            console.log(availableTags);
+                            console.log('RESULT END');
+                        });
+                    });
+
+                    response(availableTags);
+                },
+                select: function( event, ui ) {
+                    event.preventDefault();
+                    $(this).val(ui.item.label);
+                    availableTags = [];
+                    getTaskList(ui.item.value, 1);
+                }
+
+            });
+
+
+
+        });
+
+
+        /**
+         * @description Получаем и записываем список задач в таблицу с id = task_list
+         *
+         * @param {number} UID ИД пользователя, по которому выводим список
+         * @param {number} page номер страницы
+         *
+         * @return {bool}
+         *
+         */
+
+        function getTaskList(UID, page){
+            $('#task_list').html('');
+            BX24.init(function() {
+                BX24.callMethod(
+                    'task.item.list',
+                    [
+                        {RESPONSIBLE_ID : 'desc'},
+                        {RESPONSIBLE_ID:UID},
+                        {
+                            NAV_PARAMS: { // постраничка
+                                nPageSize : 2,	// по 2 элемента на странице.
+                                iNumPage  : page	// страница номер 2
+                            }
+                        }
+                    ],
+                    function (res) {
+                        console.log(res);
+                        if(res.answer.result.length > 0){
+                            $('#task_list').append('<tr><th>Наименование</th><th>Постановщик</th><th>Дата создания</th></tr>');
+                            $.each(res.answer.result, function (key, value) {
+                                dc = new Date(value.CREATED_DATE);
+                                var dateCreate = ('0' + dc.getDate()).slice(-2) +'.' + ('0' + (dc.getMonth() + 1)).slice(-2) + '.' + dc.getFullYear() + ' ' + dc.getHours() + ':' + dc.getMinutes();
+
+                                $('#task_list').append('<tr><td>' +value.TITLE+ '</td><td>' +value.CREATED_BY_LAST_NAME+ ' ' + value.CREATED_BY_NAME + '</td><td>' + dateCreate + '</td></tr>');
+                            });
+                            totalPages = Math.floor(res.answer.total/2);
+                            drawPagination(page, totalPages);
+                        }
+
+                    }
+                );
+            });
+
+            return true;
+        }
+
+        /**
+         * @description Выводим номера страниц для пагинации
+         *
+         * @param {number} currentPage Текущая страница
+         * @param {number} totalPages Общее количество страниц
+         *
+         */
+
+        function drawPagination(currentPage, totalPages){
+            $("#pagination").html('');
+            for (var i = 1;i <= totalPages; i++){
+                if(i == currentPage){
+                    $("#pagination").append(' ' + i + ' ');
+                }
+                else{
+                    $("#pagination").append(' <a onclick="return goPage('+i+');" href="#">' + i + '</a> ');
+                }
+            }
+        }
+
+
+        /**
+         * @description Функция перехода на страницу
+         *
+         * @param {number} num Номер страницы куда переходить
+         *
+         * @return {bool}
+         */
+
+        function goPage(num) {
+            console.log(num);
+            UID = $('#UID').val();
+            getTaskList(UID, num);
+
+            return false;
+
+        }
+
+    </script>
+</head>
+<body>
+<div class="ui-widget">
+    <label for="tags">Имя пользователя: </label>
+    <input id="tags"/>
+    <input type="hidden" id="UID"/>
+    <table cellpadding="6" id="task_list"></table>
+    <div id="pagination"></div>
+</div>
+</body>
+</html>
